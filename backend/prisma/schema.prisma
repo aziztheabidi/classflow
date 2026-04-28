@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  TEACHER
+  STUDENT
+}
+
+enum PostType {
+  MESSAGE
+  ASSIGNMENT
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  REVIEWED
+}
+
+model User {
+  id          String    @id @default(uuid()) @db.Uuid
+  phoneNumber String    @unique
+  name        String?
+  role        UserRole
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  createdSchools School[]      @relation("SchoolCreator")
+  taughtClasses  Class[]       @relation("ClassTeacher")
+  classMembers   ClassMember[]
+  posts          Post[]        @relation("PostCreator")
+  submissions    Submission[]  @relation("SubmissionStudent")
+  feedbacks      Feedback[]    @relation("FeedbackTeacher")
+}
+
+model School {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  createdById String   @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy   User         @relation("SchoolCreator", fields: [createdById], references: [id])
+  classes     Class[]
+  classMembers ClassMember[]
+  posts       Post[]
+  assignments Assignment[]
+  submissions Submission[]
+  feedbacks   Feedback[]
+
+  @@index([createdById])
+}
+
+model Class {
+  id        String   @id @default(uuid()) @db.Uuid
+  schoolId  String   @db.Uuid
+  name      String
+  teacherId String   @db.Uuid
+  joinCode  String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  school      School       @relation(fields: [schoolId], references: [id])
+  teacher     User         @relation("ClassTeacher", fields: [teacherId], references: [id])
+  classMembers ClassMember[]
+  posts       Post[]
+  assignments Assignment[]
+
+  @@index([schoolId])
+  @@index([teacherId])
+}
+
+model ClassMember {
+  id        String   @id @default(uuid()) @db.Uuid
+  schoolId  String   @db.Uuid
+  classId   String   @db.Uuid
+  userId    String   @db.Uuid
+  role      UserRole
+  createdAt DateTime @default(now())
+
+  school School @relation(fields: [schoolId], references: [id])
+  class  Class  @relation(fields: [classId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([classId, userId])
+  @@index([schoolId])
+  @@index([classId])
+}
+
+model Post {
+  id             String   @id @default(uuid()) @db.Uuid
+  schoolId       String   @db.Uuid
+  classId        String   @db.Uuid
+  createdById    String   @db.Uuid
+  type           PostType
+  contentText    String?
+  contentFileUrl String?
+  contentAudioUrl String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  school     School      @relation(fields: [schoolId], references: [id])
+  class      Class       @relation(fields: [classId], references: [id])
+  createdBy  User        @relation("PostCreator", fields: [createdById], references: [id])
+  assignment Assignment?
+
+  @@index([schoolId])
+  @@index([classId])
+  @@index([createdById])
+}
+
+model Assignment {
+  id           String   @id @default(uuid()) @db.Uuid
+  schoolId     String   @db.Uuid
+  classId      String   @db.Uuid
+  postId       String   @unique @db.Uuid
+  title        String
+  instructions String?
+  dueDate      DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  school      School       @relation(fields: [schoolId], references: [id])
+  class       Class        @relation(fields: [classId], references: [id])
+  post        Post         @relation(fields: [postId], references: [id])
+  submissions Submission[]
+
+  @@index([schoolId])
+  @@index([classId])
+}
+
+model Submission {
+  id             String           @id @default(uuid()) @db.Uuid
+  schoolId       String           @db.Uuid
+  assignmentId   String           @db.Uuid
+  studentId      String           @db.Uuid
+  textSubmission String?
+  fileUrl        String?
+  audioUrl       String?
+  status         SubmissionStatus @default(SUBMITTED)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  school     School      @relation(fields: [schoolId], references: [id])
+  assignment Assignment  @relation(fields: [assignmentId], references: [id])
+  student    User        @relation("SubmissionStudent", fields: [studentId], references: [id])
+  feedbacks  Feedback[]
+
+  @@index([schoolId])
+  @@index([assignmentId])
+  @@index([studentId])
+  @@unique([assignmentId, studentId])
+}
+
+model Feedback {
+  id         String   @id @default(uuid()) @db.Uuid
+  schoolId   String   @db.Uuid
+  submissionId String @db.Uuid
+  teacherId  String   @db.Uuid
+  comment    String?
+  markedDone Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  school     School     @relation(fields: [schoolId], references: [id])
+  submission Submission @relation(fields: [submissionId], references: [id])
+  teacher    User       @relation("FeedbackTeacher", fields: [teacherId], references: [id])
+
+  @@index([schoolId])
+  @@index([submissionId])
+  @@index([teacherId])
+}
